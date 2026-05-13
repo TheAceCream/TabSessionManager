@@ -503,3 +503,10 @@ body {
   color: #aaa;
   font-size: 13px;
 }
+
+.highlight {
+  background: #fff3cd;
+  color: #856404;
+  padding: 0 2px;
+  border-radius: 2px;
+}

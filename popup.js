@@ -114,7 +114,7 @@ async function loadSessions() {
     const result = await chrome.storage.local.get('sessions');
     allSessions = result.sessions || [];
     updateSessionCount();
-    renderSessions(allSessions);
+    refreshSessionList();
   } catch (error) {
     console.error('加载会话失败:', error);
     showToast('加载会话失败');
@@ -204,7 +204,7 @@ async function saveCurrentSession() {
     await saveSessions();
     
     // 重新渲染列表
-    renderSessions(allSessions);
+    refreshSessionList();
     
     // 显示成功提示
     showToast(`已保存为"${defaultName}"`);
@@ -286,7 +286,7 @@ async function deleteSession(sessionId) {
     await saveSessions();
     
     // 重新渲染列表
-    renderSessions(allSessions);
+    refreshSessionList();
     
     showToast('已删除');
     
@@ -318,7 +318,7 @@ async function editSessionName(sessionId) {
     await saveSessions();
     
     // 重新渲染列表
-    renderSessions(allSessions);
+    refreshSessionList();
     
     showToast('已重命名');
     
@@ -365,7 +365,7 @@ async function removeTabFromSession(sessionId, tabIndex) {
     if (session.tabs.length === 0) {
       allSessions = allSessions.filter(s => s.id !== sessionId);
       await saveSessions();
-      renderSessions(allSessions);
+      refreshSessionList();
       showToast('已删除标签页，会话已清空');
       return;
     }
@@ -431,6 +431,22 @@ function updateSessionNameCount(session) {
 // ========== 搜索和筛选 ==========
 
 /**
+ * 刷新会话列表（保持当前搜索状态）
+ */
+function refreshSessionList() {
+  const keyword = searchInput.value.trim().toLowerCase();
+  
+  if (!keyword) {
+    // 无搜索词，直接渲染全部
+    renderSessions(allSessions, '', null);
+    return;
+  }
+  
+  // 有搜索词，重新筛选
+  filterSessions();
+}
+
+/**
  * 根据搜索关键词筛选会话
  */
 function filterSessions() {
@@ -438,25 +454,39 @@ function filterSessions() {
   
   // 如果没有关键词，显示所有会话
   if (!keyword) {
-    renderSessions(allSessions);
+    renderSessions(allSessions, '', null);
     return;
   }
   
-  // 筛选匹配的会话
-  const filtered = allSessions.filter(session => {
-    // 匹配会话名称
-    if (session.name.toLowerCase().includes(keyword)) {
-      return true;
-    }
+  // 计算匹配信息
+  const matchInfo = new Map();
+  
+  allSessions.forEach(session => {
+    const sessionMatch = {
+      nameMatched: session.name.toLowerCase().includes(keyword),
+      matchedTabIndexes: []
+    };
     
-    // 匹配标签页标题或网址
-    return session.tabs.some(tab => 
-      tab.title.toLowerCase().includes(keyword) ||
-      tab.url.toLowerCase().includes(keyword)
-    );
+    // 检查每个标签页是否匹配
+    session.tabs.forEach((tab, index) => {
+      const titleMatch = tab.title.toLowerCase().includes(keyword);
+      const urlMatch = tab.url.toLowerCase().includes(keyword);
+      if (titleMatch || urlMatch) {
+        sessionMatch.matchedTabIndexes.push(index);
+      }
+    });
+    
+    // 如果会话名称匹配或有标签页匹配，记录该会话
+    if (sessionMatch.nameMatched || sessionMatch.matchedTabIndexes.length > 0) {
+      matchInfo.set(session.id, sessionMatch);
+    }
   });
   
-  renderSessions(filtered);
+  // 筛选匹配的会话
+  const filtered = allSessions.filter(session => matchInfo.has(session.id));
+  
+  // 渲染结果
+  renderSessions(filtered, keyword, matchInfo);
 }
 
 // ========== 渲染函数 ==========
@@ -464,13 +494,15 @@ function filterSessions() {
 /**
  * 渲染会话列表
  * @param {Array} sessions - 要渲染的会话数组
+ * @param {string} keyword - 搜索关键词
+ * @param {Map} matchInfo - 匹配信息
  */
-function renderSessions(sessions) {
+function renderSessions(sessions, keyword = '', matchInfo = null) {
   // 如果没有会话，显示空状态
   if (sessions.length === 0) {
     sessionsList.innerHTML = `
       <div class="empty-state">
-        ${searchInput.value.trim() ? '没有找到匹配的会话' : '暂无保存的会话，点击上方按钮开始保存'}
+        ${keyword ? '没有找到匹配的会话' : '暂无保存的会话，点击上方按钮开始保存'}
       </div>
     `;
     return;
@@ -487,22 +519,64 @@ function renderSessions(sessions) {
       minute: '2-digit'
     });
     
+    // 获取匹配信息
+    const sessionMatch = matchInfo ? matchInfo.get(session.id) : null;
+    const hasTabMatch = sessionMatch && sessionMatch.matchedTabIndexes.length > 0;
+    
+    // 判断是否需要自动展开（有标签页匹配时自动展开）
+    const shouldExpand = hasTabMatch;
+    
+    // 计算显示数量文本
+    let countText = `${session.tabs.length} 个标签页`;
+    if (hasTabMatch) {
+      countText = `匹配 ${sessionMatch.matchedTabIndexes.length} 个标签页`;
+    }
+    
+    // 高亮会话名称
+    const displayName = keyword && sessionMatch && sessionMatch.nameMatched
+      ? highlightText(session.name, keyword)
+      : escapeHtml(session.name);
+    
+    // 生成标签页预览内容（如果需要展开）
+    let previewHtml = '';
+    let previewStyle = 'display: none;';
+    let toggleBtnText = '展开详情';
+    
+    if (shouldExpand) {
+      toggleBtnText = '收起详情';
+      previewStyle = 'display: block;';
+      
+      // 只显示匹配的标签页
+      const matchedTabs = sessionMatch.matchedTabIndexes.map((originalIndex, displayIndex) => {
+        const tab = session.tabs[originalIndex];
+        return `
+          <div class="tab-item" data-index="${originalIndex}">
+            <img class="tab-icon" src="${tab.favIconUrl || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><rect fill=%22%23ddd%22 width=%2216%22 height=%2216%22/></svg>'}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><rect fill=%22%23ddd%22 width=%2216%22 height=%2216%22/></svg>'">
+            <span class="tab-title" data-url="${escapeHtml(tab.url)}" title="${escapeHtml(tab.url)}">${highlightText(tab.title, keyword)}</span>
+            <button class="tab-remove" title="删除此标签页">×</button>
+          </div>
+        `;
+      }).join('');
+      
+      previewHtml = matchedTabs;
+    }
+    
     return `
       <div class="session-card" data-id="${session.id}">
         <div class="session-header">
-          <span class="session-name">${escapeHtml(session.name)}</span>
+          <span class="session-name">${displayName}</span>
           <button class="session-add-btn" title="添加当前页面到此会话">+添加</button>
         </div>
         <div class="session-meta">
           <span>保存时间：${timeStr}</span>
-          <span>${session.tabs.length} 个标签页</span>
+          <span>${countText}</span>
         </div>
         <div class="session-actions">
-          <button class="btn btn-sm btn-toggle">展开详情</button>
+          <button class="btn btn-sm btn-toggle">${toggleBtnText}</button>
           <button class="btn btn-sm btn-restore">全部恢复</button>
           <button class="btn btn-sm btn-delete">删除</button>
         </div>
-        <div class="tabs-preview" style="display: none;"></div>
+        <div class="tabs-preview" style="${previewStyle}">${previewHtml}</div>
       </div>
     `;
   }).join('');
@@ -723,7 +797,7 @@ async function addCurrentPageToSession(sessionId) {
     await saveSessions();
     
     // 重新渲染列表
-    renderSessions(allSessions);
+    refreshSessionList();
     
     showToast(`已添加到「${session.name}」`);
     
@@ -772,4 +846,31 @@ function isValidPage(url) {
   ];
   
   return !invalidPrefixes.some(prefix => url.startsWith(prefix));
+}
+
+/**
+ * 高亮文本中的关键词
+ * @param {string} text - 原始文本
+ * @param {string} keyword - 关键词
+ * @returns {string} 高亮后的HTML
+ */
+function highlightText(text, keyword) {
+  if (!keyword) return escapeHtml(text);
+  
+  // 转义原始文本
+  const escapedText = escapeHtml(text);
+  const escapedKeyword = escapeHtml(keyword);
+  
+  // 使用正则表达式进行大小写不敏感的替换
+  const regex = new RegExp(`(${escapeRegExp(escapedKeyword)})`, 'gi');
+  return escapedText.replace(regex, '<span class="highlight">$1</span>');
+}
+
+/**
+ * 转义正则表达式特殊字符
+ * @param {string} string - 原始字符串
+ * @returns {string} 转义后的字符串
+ */
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
