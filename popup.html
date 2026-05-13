@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>标签页会话管理器</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>标签页会话管理器</h1>
+    </header>
+    
+    <section class="save-section">
+      <button id="saveBtn" class="btn btn-primary">
+        保存当前窗口所有标签页
+      </button>
+      <p id="sessionCount" class="session-count"></p>
+    </section>
+    
+    <section class="search-section">
+      <input 
+        type="text" 
+        id="searchInput" 
+        class="search-input" 
+        placeholder="搜索会话名称或网页标题..."
+      >
+    </section>
+    
+    <section class="sessions-section">
+      <div id="sessionsList" class="sessions-list">
+        <div class="empty-state">
+          暂无保存的会话，点击上方按钮开始保存
+        </div>
+      </div>
+    </section>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
