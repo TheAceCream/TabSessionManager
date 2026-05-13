@@ -22,6 +22,16 @@ body {
   color: white;
   padding: 16px 20px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
 }
 
 .header h1 {
@@ -64,6 +74,23 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+.btn-secondary {
+  background: white;
+  color: #667eea;
+  border: 1px solid #667eea;
+  margin-top: 8px;
+  padding: 8px 16px;
+}
+
+.btn-secondary:hover {
+  background: #f5f5ff;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .session-count {
@@ -140,6 +167,29 @@ body {
 
 .session-name:hover {
   color: #667eea;
+}
+
+.session-add-btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.session-add-btn:hover {
+  background: #5a6fd6;
+  transform: scale(1.05);
+}
+
+.session-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .session-meta {
@@ -369,4 +419,87 @@ body {
 
 .confirm-ok:hover {
   background: #c0392b;
+}
+
+.session-selector {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-selector-dialog {
+  background: white;
+  border-radius: 10px;
+  padding: 16px;
+  width: 300px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  animation: dialogFadeIn 0.2s ease;
+}
+
+.session-selector-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.session-selector-page {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-selector-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.session-selector-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.session-selector-item:hover {
+  background: #f0f0ff;
+}
+
+.session-selector-item-name {
+  font-size: 13px;
+  color: #333;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-selector-item-count {
+  font-size: 11px;
+  color: #888;
+  margin-left: 8px;
+}
+
+.session-selector-empty {
+  text-align: center;
+  padding: 20px;
+  color: #aaa;
+  font-size: 13px;
 }

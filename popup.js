@@ -8,6 +8,7 @@
  * 4. 删除会话
  * 5. 编辑会话名称
  * 6. 预览会话内的标签页列表
+ * 7. 将当前页面添加到会话
  */
 
 // ========== 常量配置 ==========
@@ -15,6 +16,7 @@ const MAX_SESSIONS = 50; // 会话数量上限
 
 // ========== DOM 元素引用 ==========
 const saveBtn = document.getElementById('saveBtn');
+const addCurrentPageBtn = document.getElementById('addCurrentPageBtn');
 const searchInput = document.getElementById('searchInput');
 const sessionsList = document.getElementById('sessionsList');
 const sessionCount = document.getElementById('sessionCount');
@@ -34,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
 function bindEvents() {
   // 保存按钮点击事件
   saveBtn.addEventListener('click', saveCurrentSession);
+  
+  // 添加当前页面按钮点击事件
+  addCurrentPageBtn.addEventListener('click', showSessionSelector);
   
   // 搜索框输入事件（实时筛选）
   searchInput.addEventListener('input', filterSessions);
@@ -89,6 +94,12 @@ function handleSessionAction(e) {
     const tabItem = target.closest('.tab-item');
     const index = parseInt(tabItem.dataset.index, 10);
     removeTabFromSession(sessionId, index);
+    return;
+  }
+  
+  // 快捷添加按钮（会话卡片上的 +添加 按钮）
+  if (target.classList.contains('session-add-btn')) {
+    addCurrentPageToSession(sessionId);
     return;
   }
 }
@@ -480,6 +491,7 @@ function renderSessions(sessions) {
       <div class="session-card" data-id="${session.id}">
         <div class="session-header">
           <span class="session-name">${escapeHtml(session.name)}</span>
+          <button class="session-add-btn" title="添加当前页面到此会话">+添加</button>
         </div>
         <div class="session-meta">
           <span>保存时间：${timeStr}</span>
@@ -610,4 +622,154 @@ function showConfirm(title, message) {
       }
     });
   });
+}
+
+// ========== 添加当前页面到会话 ==========
+
+/**
+ * 显示会话选择弹窗
+ */
+async function showSessionSelector() {
+  // 获取当前页面信息
+  const currentPage = await getCurrentPage();
+  
+  // 检查页面是否有效
+  if (!currentPage || !isValidPage(currentPage.url)) {
+    showToast('当前页面无法添加');
+    return;
+  }
+  
+  // 检查是否有可用会话
+  if (allSessions.length === 0) {
+    showToast('请先保存一个会话');
+    return;
+  }
+  
+  // 创建遮罩层
+  const overlay = document.createElement('div');
+  overlay.className = 'session-selector';
+  
+  // 创建弹窗
+  overlay.innerHTML = `
+    <div class="session-selector-dialog">
+      <div class="session-selector-title">添加当前页面到会话</div>
+      <div class="session-selector-page" title="${escapeHtml(currentPage.url)}">${escapeHtml(currentPage.title)}</div>
+      <div class="session-selector-list">
+        ${allSessions.map(session => `
+          <div class="session-selector-item" data-session-id="${session.id}">
+            <span class="session-selector-item-name">${escapeHtml(session.name)}</span>
+            <span class="session-selector-item-count">${session.tabs.length} 个标签页</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(overlay);
+  
+  // 点击会话项
+  overlay.querySelectorAll('.session-selector-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const sessionId = item.dataset.sessionId;
+      overlay.remove();
+      addCurrentPageToSession(sessionId);
+    });
+  });
+  
+  // 点击遮罩层关闭
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+}
+
+/**
+ * 将当前页面添加到指定会话
+ * @param {string} sessionId - 会话ID
+ */
+async function addCurrentPageToSession(sessionId) {
+  const session = allSessions.find(s => s.id === sessionId);
+  if (!session) return;
+  
+  // 获取当前页面信息
+  const currentPage = await getCurrentPage();
+  
+  // 检查页面是否有效
+  if (!currentPage || !isValidPage(currentPage.url)) {
+    showToast('当前页面无法添加');
+    return;
+  }
+  
+  // 检查页面是否已存在于会话中
+  const existingTab = session.tabs.find(tab => tab.url === currentPage.url);
+  if (existingTab) {
+    showToast('该页面已在此会话中');
+    return;
+  }
+  
+  try {
+    // 添加到会话
+    session.tabs.push({
+      title: currentPage.title,
+      url: currentPage.url,
+      favIconUrl: currentPage.favIconUrl || null
+    });
+    
+    // 更新会话名称中的标签页数量
+    updateSessionNameCount(session);
+    
+    // 保存到存储
+    await saveSessions();
+    
+    // 重新渲染列表
+    renderSessions(allSessions);
+    
+    showToast(`已添加到「${session.name}」`);
+    
+  } catch (error) {
+    console.error('添加页面失败:', error);
+    showToast('添加失败，请重试');
+  }
+}
+
+/**
+ * 获取当前活动标签页信息
+ * @returns {Object|null} 标签页信息
+ */
+async function getCurrentPage() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) return null;
+    
+    return {
+      title: tab.title || '无标题',
+      url: tab.url,
+      favIconUrl: tab.favIconUrl || null
+    };
+  } catch (error) {
+    console.error('获取当前页面失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 检查页面URL是否有效
+ * @param {string} url - 页面URL
+ * @returns {boolean} 是否有效
+ */
+function isValidPage(url) {
+  if (!url) return false;
+  
+  // 排除系统页面
+  const invalidPrefixes = [
+    'chrome://',
+    'chrome-extension://',
+    'edge://',
+    'about:blank',
+    'chrome-search://',
+    'devtools://'
+  ];
+  
+  return !invalidPrefixes.some(prefix => url.startsWith(prefix));
 }
