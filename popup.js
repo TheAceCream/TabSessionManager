@@ -376,7 +376,17 @@ async function removeTabFromSession(sessionId, tabIndex) {
     // 保存到存储
     await saveSessions();
     
-    // 只更新该会话卡片的预览区域，保持展开状态
+    // 检查是否有搜索词
+    const keyword = searchInput.value.trim().toLowerCase();
+    
+    if (keyword) {
+      // 有搜索词，重新渲染以保持搜索结果正确
+      refreshSessionList();
+      showToast('已删除标签页');
+      return;
+    }
+    
+    // 无搜索词，只更新该会话卡片的预览区域，保持展开状态
     const card = document.querySelector(`.session-card[data-id="${sessionId}"]`);
     if (card) {
       const preview = card.querySelector('.tabs-preview');
